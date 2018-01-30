@@ -1,13 +1,13 @@
 from conans import ConanFile, CMake, tools
-import os
+
 
 class ZMQConan(ConanFile):
     """ ZMQ is a network, sockets on steroids library. 
     Safe for use in commercial applications LGPL v3 with static linking exception
     """
     name = "libzmq"
-    version = "4.2.0"
-    version_flat = "4_2_0"
+    version = "4.2.2"
+    version_flat = version.replace('.', '_')
     license = "LGPL"
     url = "https://github.com/memsharded/conan-zmq.git"
     settings = "os", "compiler", "build_type", "arch"
@@ -18,20 +18,22 @@ class ZMQConan(ConanFile):
 
     def source(self):
         self.run("git clone https://github.com/zeromq/libzmq.git")
-        self.run("cd libzmq && git checkout v4.2.0")
+        self.run("cd libzmq && git checkout v%s" % self.version)
         tools.replace_in_file("libzmq/CMakeLists.txt", "project (ZeroMQ)", """project (ZeroMQ)
 include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
 conan_basic_setup()
 """)
           
     def build(self):
-        cmake = CMake(self.settings)
-        self.run('cmake libzmq %s -DZMQ_BUILD_TESTS=OFF -DZMQ_BUILD_FRAMEWORK=OFF' % cmake.command_line)
+        cmake = CMake(self)
+        self.run('cmake libzmq %s -DZMQ_BUILD_TESTS=OFF -DZMQ_BUILD_FRAMEWORK=OFF -DWITH_DOC=OFF' %
+                 cmake.command_line)
         self.run("cmake --build . %s" % cmake.build_config)
 
     def package(self):
         self.copy_headers("*", "libzmq/include")
         self.copy("FindZeroMQ.cmake")
+
         if not self.options.shared:
             self.copy("*libzmq*-mt-s*.lib", "lib", "lib", keep_path=False)
             self.copy("*.a", "lib", "lib", keep_path=False)  # Linux
@@ -43,8 +45,8 @@ conan_basic_setup()
             self.copy("libzmq.so*", "lib", "lib", keep_path=False)  # Linux
 
     def package_info(self):
-        if self.settings.os != "Windows":
-            self.cpp_info.libs = ["zmq-static"] if not self.options.shared else ["zmq"]
+        if self.settings.os != "Windows" or self.settings.compiler != "Visual Studio":
+            self.cpp_info.libs = ["zmq"]
         else:
             ver = ""
             if self.settings.compiler == "Visual Studio":
@@ -58,12 +60,13 @@ conan_basic_setup()
             self.cpp_info.libs = ["libzmq%s%s-mt%s-%s" % (static, ver, fix, self.version_flat)]
 
         if not self.options.shared:
-            if self.settings.compiler == "Visual Studio":
-                self.cpp_info.libs.extend(["ws2_32", "wsock32","Iphlpapi"])
             self.cpp_info.defines = ["ZMQ_STATIC"]
 
-            if not self.settings.os == "Windows":
-                self.cpp_info.cppflags = ["-pthread"]
+            if self.settings.os == "Windows":
+                self.cpp_info.libs.extend(["ws2_32", "wsock32","Iphlpapi"])
+
+            # if not self.settings.os == "Windows" and not self.settings.os == 'Macos':
+            #     self.cpp_info.cppflags = ["-pthread"]
         
         if self.settings.os == "Linux":
             self.cpp_info.libs.extend(["pthread", "dl", "rt"])
