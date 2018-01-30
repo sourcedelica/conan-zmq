@@ -31,7 +31,7 @@ conan_basic_setup()
         self.run("cmake --build . %s" % cmake.build_config)
 
     def package(self):
-        self.copy_headers("*", "libzmq/include")
+        self.copy(pattern='*.h', src='libzmq/include', dst='include', keep_path=True)
         self.copy("FindZeroMQ.cmake")
 
         if not self.options.shared:
